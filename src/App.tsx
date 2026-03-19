@@ -156,12 +156,22 @@ export default function App() {
 
     setIsExtracting(true);
     try {
+      if (!process.env.GEMINI_API_KEY) {
+        console.error("GEMINI_API_KEY no está configurada en el entorno.");
+        throw new Error("La clave de API de Gemini no está configurada. Por favor, asegúrate de que esté disponible en el entorno.");
+      }
+
       const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve) => {
+      const base64Promise = new Promise<string>((resolve, reject) => {
         reader.onload = () => {
-          const base64 = (reader.result as string).split(',')[1];
-          resolve(base64);
+          const result = reader.result as string;
+          if (result.includes(',')) {
+            resolve(result.split(',')[1]);
+          } else {
+            reject(new Error("Error al procesar la imagen. Formato no válido."));
+          }
         };
+        reader.onerror = () => reject(new Error("Error al leer el archivo."));
       });
       reader.readAsDataURL(file);
       const base64Data = await base64Promise;
@@ -169,17 +179,19 @@ export default function App() {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: [
-          {
-            inlineData: {
-              data: base64Data,
-              mimeType: file.type,
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType: file.type,
+              },
             },
-          },
-          {
-            text: "Extract the full name, job position, date, and the reason (motivo) for the document. Return the data in JSON format.",
-          },
-        ],
+            {
+              text: "Extract the full name, job position, date, and the reason (motivo) for the document. Return the data in JSON format.",
+            },
+          ],
+        },
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -195,7 +207,11 @@ export default function App() {
         },
       });
 
-      const result = JSON.parse(response.text || '{}');
+      if (!response.text) {
+        throw new Error("No se pudo obtener texto de la respuesta de la IA.");
+      }
+
+      const result = JSON.parse(response.text);
       if (result.fullName || result.position || result.date || result.reason) {
         setFormData({
           fullName: result.fullName || '',
@@ -204,9 +220,10 @@ export default function App() {
           date: result.date || format(new Date(), 'yyyy-MM-dd'),
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error extracting data:", error);
-      alert("No se pudo extraer la información de la imagen. Intenta con otra imagen o ingresa los datos manualmente.");
+      const message = error?.message || "Ocurrió un error inesperado.";
+      alert(`No se pudo extraer la información de la imagen: ${message}`);
     } finally {
       setIsExtracting(false);
       // Reset file input
