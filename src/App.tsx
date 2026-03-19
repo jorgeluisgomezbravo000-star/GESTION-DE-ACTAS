@@ -21,7 +21,8 @@ import {
   ChevronRight,
   BarChart3,
   Moon,
-  Sun
+  Sun,
+  AlertCircle
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -79,8 +80,15 @@ export default function App() {
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
+  const [hasApiKey, setHasApiKey] = useState(false);
 
   // --- Effects ---
+  useEffect(() => {
+    const key = (import.meta as any).env?.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
+    const isValid = !!key && key !== 'MY_GEMINI_API_KEY';
+    console.log("API Key detected:", isValid ? "YES" : "NO");
+    setHasApiKey(isValid);
+  }, []);
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -171,9 +179,14 @@ export default function App() {
       reader.readAsDataURL(file);
       const base64Data = await base64Promise;
 
-      const apiKey = process.env.GEMINI_API_KEY || '';
-      if (!apiKey) {
-        console.warn("GEMINI_API_KEY is empty in the client. Check build configuration.");
+      const apiKey = 
+        (import.meta as any).env?.VITE_GEMINI_API_KEY || 
+        process.env.GEMINI_API_KEY || 
+        '';
+        
+      if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
+        console.error("GEMINI_API_KEY is missing or is the placeholder.");
+        throw new Error("La clave de API de Gemini no está configurada correctamente. Por favor, asegúrate de haberla añadido en la sección de Secretos (⚙️ -> Secrets) con el nombre GEMINI_API_KEY.");
       }
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
@@ -469,6 +482,19 @@ export default function App() {
         </nav>
 
         <div className="p-4 border-t dark:border-slate-800 space-y-2">
+          <div className="px-4 py-2 mb-2">
+            {!hasApiKey ? (
+              <div className="flex items-center gap-2 text-red-500 text-xs font-medium">
+                <AlertCircle size={14} />
+                <span>API Key Faltante</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-emerald-500 text-xs font-medium">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>IA Conectada</span>
+              </div>
+            )}
+          </div>
           <button 
             onClick={() => setDarkMode(!darkMode)}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-all"
