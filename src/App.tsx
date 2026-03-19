@@ -246,15 +246,59 @@ export default function App() {
 
   // --- Exports ---
   const exportToExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(filteredRecords.map(r => ({
-      Nombre: r.fullName,
-      Puesto: r.position,
-      Motivo: r.reason,
-      Fecha: r.date
-    })));
+    // Sort records by name to group them
+    const sorted = [...filteredRecords].sort((a, b) => a.fullName.localeCompare(b.fullName));
+    
+    // Prepare data using Array of Arrays for custom formatting
+    const data: any[][] = [
+      ["SISTEMA DE CONTROL DE ACTAS"],
+      [`REPORTE GENERADO EL: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`],
+      [],
+      ["NOMBRE COMPLETO", "PUESTO", "MOTIVO DEL ACTA", "FECHA"]
+    ];
+
+    let currentPerson = "";
+    let personCount = 0;
+
+    sorted.forEach((r, index) => {
+      // If person changes, add a subtotal for the previous person
+      if (currentPerson && r.fullName !== currentPerson) {
+        data.push(["", "", `SUBTOTAL (${currentPerson}):`, `${personCount} acta(s)`]);
+        data.push([]); // Spacer row
+        personCount = 0;
+      }
+      
+      data.push([r.fullName, r.position, r.reason, r.date]);
+      currentPerson = r.fullName;
+      personCount++;
+
+      // Handle the last person in the list
+      if (index === sorted.length - 1) {
+        data.push(["", "", `SUBTOTAL (${currentPerson}):`, `${personCount} acta(s)`]);
+      }
+    });
+
+    // Add final summary
+    data.push([]);
+    data.push(["RESUMEN GENERAL"]);
+    data.push(["Total de Actas Registradas:", "", "", sorted.length]);
+    data.push(["Total de Personas con Actas:", "", "", new Set(sorted.map(r => r.fullName)).size]);
+
+    const worksheet = XLSX.utils.aoa_to_sheet(data);
+    
+    // Define column widths for a professional look
+    worksheet['!cols'] = [
+      { wch: 35 }, // Nombre
+      { wch: 25 }, // Puesto
+      { wch: 60 }, // Motivo
+      { wch: 15 }  // Fecha
+    ];
+
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Actas");
-    XLSX.writeFile(workbook, `Reporte_Actas_${format(new Date(), 'yyyyMMdd')}.xlsx`);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Reporte de Actas");
+    
+    // Generate and download
+    XLSX.writeFile(workbook, `Reporte_Actas_Profesional_${format(new Date(), 'yyyyMMdd')}.xlsx`);
   };
 
   const exportToPDF = () => {
