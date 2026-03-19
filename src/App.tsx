@@ -156,11 +156,6 @@ export default function App() {
 
     setIsExtracting(true);
     try {
-      if (!process.env.GEMINI_API_KEY) {
-        console.error("GEMINI_API_KEY no está configurada en el entorno.");
-        throw new Error("La clave de API de Gemini no está configurada. Por favor, asegúrate de que esté disponible en el entorno.");
-      }
-
       const reader = new FileReader();
       const base64Promise = new Promise<string>((resolve, reject) => {
         reader.onload = () => {
@@ -176,7 +171,11 @@ export default function App() {
       reader.readAsDataURL(file);
       const base64Data = await base64Promise;
 
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const apiKey = process.env.GEMINI_API_KEY || '';
+      if (!apiKey) {
+        console.warn("GEMINI_API_KEY is empty in the client. Check build configuration.");
+      }
+      const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: {
